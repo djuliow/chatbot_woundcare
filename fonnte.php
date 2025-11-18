@@ -1,6 +1,6 @@
 <?php
 function send_whatsapp_message($to, $message) {
-    $api_key = 'F98nCdBxT6vk1g3LQFYr';
+    $api_key = getenv('FONNTE_API_KEY');
     $curl = curl_init();
 
     curl_setopt_array($curl, array(
