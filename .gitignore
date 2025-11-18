@@ -1,0 +1,4 @@
+.env
+webhook_log.txt
+debug_log.txt
+fatal_error_log.txt

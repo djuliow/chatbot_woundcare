@@ -12,12 +12,30 @@ $data = json_decode($json, true);
 // Check if the data is valid
 if (isset($data['sender']) && isset($data['message'])) {
     $sender = $data['sender'];
-    $message = $data['message'];
+    $original_message = $data['message'];
+    // $message = strtolower($original_message); // Not needed if not matching local keywords
 
-    // Get the chatbot's response
-    $response = get_response($message);
+    // --- Logging Start ---
+    $log = "========================\n";
+    $log .= "Timestamp: " . date('Y-m-d H:i:s') . "\n";
+    $log .= "Sender: $sender\n";
+    $log .= "Original Message: $original_message\n";
+    // $log .= "Lowercase Message: $message\n"; // Not needed
+    $log .= "API Keys Loaded: " . count($GLOBALS['apiKeys']) . "\n";
+    // --- Logging End ---
 
-    // Send the response back to the user
+    // Construct the prompt for Gemini, asking for a detailed, structured response
+    $prompt = "Jawab pertanyaan berikut sesuai format yang diminta di instruksi sistem (1 paragraf pembuka, lalu poin-poin, dan diakhiri dengan 1 paragraf penutup). Pertanyaan: " . $original_message;
+    $log .= "Action: Sending user message to Gemini for a detailed, structured response.\nPrompt to Gemini: " . $prompt . "\n";
+    $response = get_response($prompt);
+
+    // --- Logging ---
+    $log .= "Final Response from Gemini: " . ($response ? $response : 'No response') . "\n";
+    file_put_contents('debug_log.txt', $log, FILE_APPEND);
+    // --- Logging End ---
+
+    // Attempt to send the entire long response in a single message.
+    // This is expected to fail on the Fonnte free plan.
     send_whatsapp_message($sender, $response);
 }
 ?>

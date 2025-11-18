@@ -1,13 +1,48 @@
 <?php
 ini_set('max_execution_time', 120); // Set PHP max execution time to 120 seconds
 
+/**
+ * Loads environment variables from a .env file.
+ * This is a simplified implementation since Composer is not available for phpdotenv.
+ */
+function loadEnv($path) {
+    if (!file_exists($path)) {
+        return;
+    }
+
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0) {
+            continue; // Skip comments
+        }
+
+        list($name, $value) = explode('=', $line, 2);
+        $name = trim($name);
+        $value = trim($value, "'\""); // Strip single and double quotes
+
+        if (!array_key_exists($name, $_SERVER) && !array_key_exists($name, $_ENV)) {
+            putenv(sprintf('%s=%s', $name, $value));
+            $_ENV[$name] = $value;
+            $_SERVER[$name] = $value;
+        }
+    }
+}
+
+// Load environment variables
+loadEnv(__DIR__ . '/.env');
+
 // --- Gemini API Integration with Failover ---
 
 // Daftar API Key Anda untuk failover
 $apiKeys = [
-    'AIzaSyC4IQ5JW_49Ry00FApxZbJbjmiCYlQX-78',
-    'AIzaSyByiFAPuC50IPFvWVtkzO8PujX53pbo-Js',
+    getenv('GEMINI_API_KEY_1'),
+    getenv('GEMINI_API_KEY_2'),
+    getenv('GEMINI_API_KEY_3'),
+    getenv('GEMINI_API_KEY_4'),
 ];
+
+// Filter out any null or empty keys if they are not set in .env
+$apiKeys = array_filter($apiKeys);
 
 // Model yang akan digunakan. Kita kembali ke flash karena ini yang paling mungkin tersedia untuk Anda.
 $model = 'gemini-2.5-pro';
@@ -22,10 +57,16 @@ $apiVersion = 'v1'; // Versi API yang akan digunakan
 function get_response($message) {
     global $apiKeys, $model, $apiVersion;
 
+    // Defensive check: Ensure API keys are loaded.
+    if (empty($apiKeys)) {
+        error_log("FATAL: No API keys loaded. Check .env file and permissions.");
+        return "ERROR: Konfigurasi API Key tidak ditemukan. Silakan periksa file .env Anda dan pastikan sudah terisi dengan benar.";
+    }
+
     $lastErrorResult = null; // Untuk menyimpan detail error terakhir jika semua key gagal
 
     // Instruksi sistem (tetap sama)
-    $system_instruction = "Anda adalah 'WoundCare', sebuah chatbot asisten ahli untuk panduan penanganan luka. Peran Anda adalah memberikan informasi yang detail, spesifik, dan mudah dipahami. Instruksi Tambahan: Jangan gunakan karakter Markdown seperti *, #, atau ** dalam jawaban Anda.";
+    $system_instruction = "Anda adalah 'WoundCare', sebuah chatbot asisten ahli untuk panduan penanganan luka. Peran Anda adalah memberikan jawaban yang sangat detail dan terstruktur. Format jawaban harus: Dimulai dengan sapaan singkat (misal: 'Selamat datang di WoundCare.'), diikuti satu baris kosong, lalu 1 paragraf pembuka, beberapa poin-poin penting, dan diakhiri dengan 1 paragraf penutup. Instruksi Tambahan: Jangan gunakan karakter Markdown seperti *, #, atau ** dalam jawaban Anda.";
 
     $data = [
         'contents' => [['parts' => [['text' => $system_instruction . "\n\nPertanyaan Pengguna: " . $message]]]],
@@ -40,6 +81,11 @@ function get_response($message) {
 
     // Loop melalui setiap API key
     foreach ($apiKeys as $index => $apiKey) {
+        // Skip if API key is empty
+        if (empty($apiKey)) {
+            continue;
+        }
+
         $geminiApiUrl = "https://generativelanguage.googleapis.com/{$apiVersion}/models/{$model}:generateContent?key={$apiKey}";
 
         $ch = curl_init($geminiApiUrl);
