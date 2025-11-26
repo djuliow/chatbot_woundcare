@@ -2,6 +2,10 @@
 // Log the raw input to a file for debugging
 file_put_contents('webhook_log.txt', file_get_contents('php://input') . "\n", FILE_APPEND);
 
+// Prevent script from stopping if the client (Fonnte) disconnects due to timeout
+ignore_user_abort(true);
+set_time_limit(0); // Allow infinite execution time
+
 include 'fonnte.php';
 include 'chatbot.php';
 
@@ -30,12 +34,21 @@ if (isset($data['sender']) && isset($data['message'])) {
     $response = get_response($original_message);
 
     // --- Logging ---
-    $log .= "Final Response from Gemini: " . ($response ? $response : 'No response') . "\n";
+    $log .= "Final Response from Gemini: " . ($response ? substr($response, 0, 100) . "..." : 'No response') . "\n";
+    
+    // Attempt to send the response.
+    // Clean the response to remove any potential invalid characters
+    $cleanResponse = strip_tags($response);
+    // $cleanResponse = preg_replace('/[^\x20-\x7E\n\r\t]/', '', $cleanResponse); // Removed aggressive regex
+    $cleanResponse = trim($cleanResponse);
+
+    // Log the cleaned message
+    $log .= "Sending Single Message (Length: " . strlen($cleanResponse) . "): " . $cleanResponse . "\n";
+    
+    $fonnteResponse = send_whatsapp_message($sender, $cleanResponse);
+    $log .= "Fonnte Response: " . $fonnteResponse . "\n";
+    
     file_put_contents('debug_log.txt', $log, FILE_APPEND);
     // --- Logging End ---
-
-    // Attempt to send the entire long response in a single message.
-    // This is expected to fail on the Fonnte free plan.
-    send_whatsapp_message($sender, $response);
 }
 ?>

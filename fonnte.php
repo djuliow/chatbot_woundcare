@@ -12,11 +12,11 @@ function send_whatsapp_message($to, $message) {
       CURLOPT_FOLLOWLOCATION => true,
       CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
       CURLOPT_CUSTOMREQUEST => 'POST',
-      CURLOPT_POSTFIELDS => array(
+      CURLOPT_POSTFIELDS => http_build_query(array(
         'target' => $to,
         'message' => $message,
         'countryCode' => '62', //optional
-      ),
+      )),
       CURLOPT_HTTPHEADER => array(
         "Authorization: $api_key"
       ),
