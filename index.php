@@ -25,9 +25,9 @@ if (isset($data['sender']) && isset($data['message'])) {
     // --- Logging End ---
 
     // Construct the prompt for Gemini, asking for a detailed, structured response
-    $prompt = "Jawab pertanyaan berikut sesuai format yang diminta di instruksi sistem (1 paragraf pembuka, lalu poin-poin, dan diakhiri dengan 1 paragraf penutup). Pertanyaan: " . $original_message;
-    $log .= "Action: Sending user message to Gemini for a detailed, structured response.\nPrompt to Gemini: " . $prompt . "\n";
-    $response = get_response($prompt);
+    // $prompt = "Jawab pertanyaan berikut sesuai format yang diminta di instruksi sistem (1 paragraf pembuka, lalu poin-poin, dan diakhiri dengan 1 paragraf penutup). Pertanyaan: " . $original_message;
+    $log .= "Action: Processing user message.\nMessage: " . $original_message . "\n";
+    $response = get_response($original_message);
 
     // --- Logging ---
     $log .= "Final Response from Gemini: " . ($response ? $response : 'No response') . "\n";

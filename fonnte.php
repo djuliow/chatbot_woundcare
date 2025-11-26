@@ -20,6 +20,7 @@ function send_whatsapp_message($to, $message) {
       CURLOPT_HTTPHEADER => array(
         "Authorization: $api_key"
       ),
+      CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4, // Force IPv4
     ));
 
     $response = curl_exec($curl);

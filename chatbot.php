@@ -44,7 +44,7 @@ $apiKeys = [
 // Filter out any null or empty keys if they are not set in .env
 $apiKeys = array_filter($apiKeys);
 
-// Model yang akan digunakan. Kita kembali ke flash karena ini yang paling mungkin tersedia untuk Anda.
+// Model yang akan digunakan.
 $model = 'gemini-2.5-pro';
 $apiVersion = 'v1'; // Versi API yang akan digunakan
 
@@ -57,6 +57,23 @@ $apiVersion = 'v1'; // Versi API yang akan digunakan
 function get_response($message) {
     global $apiKeys, $model, $apiVersion;
 
+    // --- Personality Layer (Respon Instan untuk Basa-basi) ---
+    // Ini bukan knowledge base medis, tapi hanya "refleks" percakapan agar terasa natural & cepat.
+    $msgLower = strtolower(trim($message));
+    if ($msgLower === 'halo' || $msgLower === 'hi' || $msgLower === 'hai'|| $msgLower === 'hello') {
+        return "Halo! Saya WoundCare. Ada yang bisa saya bantu mengenai luka?";
+    }
+    if (strpos($msgLower, 'siapa kamu') !== false || strpos($msgLower, 'kamu siapa') !== false) {
+        return "Saya WoundCare, asisten AI Anda untuk konsultasi perawatan luka.";
+    }
+    if ($msgLower === 'terima kasih' || $msgLower === 'makasih') {
+        return "Sama-sama! Semoga lekas sembuh.";
+    }
+    if (strpos($msgLower, 'pencipta') !== false || strpos($msgLower, 'pembuat') !== false || strpos($msgLower, 'yang buat') !== false) {
+        return "Saya dikembangkan oleh tim WoundCare untuk membantu Anda merawat luka.";
+    }
+    // ---------------------------------------------------------
+
     // Defensive check: Ensure API keys are loaded.
     if (empty($apiKeys)) {
         error_log("FATAL: No API keys loaded. Check .env file and permissions.");
@@ -66,34 +83,41 @@ function get_response($message) {
     $lastErrorResult = null; // Untuk menyimpan detail error terakhir jika semua key gagal
 
     // Instruksi sistem (tetap sama)
-    $system_instruction = "Anda adalah 'WoundCare', sebuah chatbot asisten ahli untuk panduan penanganan luka. Peran Anda adalah memberikan jawaban yang sangat detail dan terstruktur. Format jawaban harus: Dimulai dengan sapaan singkat (misal: 'Selamat datang di WoundCare.'), diikuti satu baris kosong, lalu 1 paragraf pembuka, beberapa poin-poin penting, dan diakhiri dengan 1 paragraf penutup. Instruksi Tambahan: Jangan gunakan karakter Markdown seperti *, #, atau ** dalam jawaban Anda.";
+    // Instruksi sistem yang lebih ringkas untuk mempercepat waktu generate
+    $system_instruction = "Anda adalah 'WoundCare', asisten AI untuk perawatan luka. Jawablah pertanyaan pengguna secara langsung, ringkas, dan jelas. Hindari basa-basi yang terlalu panjang. Fokus pada solusi medis yang akurat. Gaya bicara: Ramah, profesional, dan seperti manusia (natural). PENTING: Jangan gunakan format Markdown sama sekali. Jangan gunakan simbol bintang (*), pagar (#), atau bullet point. Gunakan teks biasa saja. Identitas: Anda diciptakan oleh tim WoundCare, BUKAN oleh Google.";
 
-    $data = [
-        'contents' => [['parts' => [['text' => $system_instruction . "\n\nPertanyaan Pengguna: " . $message]]]],
-        'safetySettings' => [
-            ['category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_ONLY_HIGH'],
-            ['category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'BLOCK_ONLY_HIGH'],
-            ['category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_ONLY_HIGH'],
-            ['category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_ONLY_HIGH'],
-        ]
-    ];
-    $jsonData = json_encode($data);
+        $data = [
+            'contents' => [['parts' => [['text' => $system_instruction . "\n\nPertanyaan Pengguna: " . $message]]]],
+            'generationConfig' => [
+                'maxOutputTokens' => 8000, // Increased significantly for reasoning model
+                'temperature' => 0.7
+            ],
+            'safetySettings' => [
+                ['category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_ONLY_HIGH'],
+                ['category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'BLOCK_ONLY_HIGH'],
+                ['category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_ONLY_HIGH'],
+                ['category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_ONLY_HIGH'],
+            ]
+        ];
+        $jsonData = json_encode($data);
 
-    // Loop melalui setiap API key
-    foreach ($apiKeys as $index => $apiKey) {
-        // Skip if API key is empty
-        if (empty($apiKey)) {
-            continue;
-        }
+        // Loop melalui setiap API key
+        foreach ($apiKeys as $index => $apiKey) {
+            // Skip if API key is empty
+            if (empty($apiKey)) {
+                continue;
+            }
 
-        $geminiApiUrl = "https://generativelanguage.googleapis.com/{$apiVersion}/models/{$model}:generateContent?key={$apiKey}";
+            $geminiApiUrl = "https://generativelanguage.googleapis.com/{$apiVersion}/models/{$model}:generateContent?key={$apiKey}";
 
-        $ch = curl_init($geminiApiUrl);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 60); // Batas waktu 60 detik
+            $ch = curl_init($geminiApiUrl);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10); // Increased connection timeout
+            curl_setopt($ch, CURLOPT_TIMEOUT, 90); // Increased total timeout for reasoning model
+            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4); // Force IPv4 to avoid XAMPP DNS delay
 
         $response = curl_exec($ch);
         $curlError = curl_error($ch);
@@ -109,7 +133,9 @@ function get_response($message) {
 
         // Jika berhasil mendapatkan teks dan teks tersebut tidak kosong setelah di-trim
         if ($generatedText && trim($generatedText) !== '') {
-            return $generatedText;
+            // Bersihkan markdown (bintang, pagar, dll) jika AI masih membandel
+            $cleanText = str_replace(['*', '#', '`'], '', $generatedText);
+            return $cleanText;
         }
 
         // Jika gagal, simpan detail errornya
@@ -125,7 +151,9 @@ function get_response($message) {
     }
 
     // Jika loop selesai dan tidak ada jawaban (semua key gagal)
-    error_log("Gemini API Failover Error (last attempt): " . print_r($lastErrorResult, true));
+    $errorMsg = "Gemini API Failover Error (last attempt): " . print_r($lastErrorResult, true);
+    error_log($errorMsg);
+    file_put_contents('api_error.txt', $errorMsg . "\n", FILE_APPEND); // Log to local file
     return "Maaf, terjadi masalah saat menghubungi layanan AI. Semua upaya gagal. Ini mungkin karena server sedang sibuk atau ada masalah dengan kuota API. Silakan coba lagi nanti.";
 }
 ?>
